@@ -5,24 +5,7 @@
 #include <random>
 #include <iostream>
 #include <omp.h>
-#include <rocblas.h>
-#include <hip/hip_runtime_api.h>
-
-
-__host__ void myErrorHandler(hipError_t ifail, const char * file,
-                             int line, int fatal) {
-    if (ifail != hipSuccess) {
-        fprintf(stderr, "Line %d (%s): %s: %s\n", line, file,
-                hipGetErrorName(ifail), hipGetErrorString(ifail));
-        if (fatal) exit(ifail);
-    }
-
-  return;
-}
-
-#define HIP_ASSERT(call) { myErrorHandler((call), __FILE__, __LINE__, 1); }
-
-
+#include <rocblas/rocblas.h> 
 
 
 void set_random_matrix(double * A, size_t N, size_t M,std::mt19937 &rd)
@@ -47,6 +30,7 @@ auto diff_matrix(double * A , double * B,size_t M,size_t N)
     return diff/(N*M);
 }
 
+
 void print_matrix(double * A,size_t N,size_t M)
 {
     for(size_t i=0;i< N ;i++)
@@ -64,16 +48,11 @@ void print_matrix(double * A,size_t N,size_t M)
 int main(int argc, char ** argv)
 {   
 
-    size_t N=2,M=2,K=2;
+    size_t N=4,M=2,K=3;
     double * A;
     double * B;
     double * C;
 
-
-    double * A_d;
-    double *B_d;
-    double *C_d;
-    double * C_test;
     const double tol=1e-7;
     int seed = 1039;
     int nTrials=1;
@@ -83,26 +62,18 @@ int main(int argc, char ** argv)
     A = new double [K * N];
     B = new double [ M * N];
     C = new double [ K *M];
-    C_test = new double [ K *M];
-
-    HIP_ASSERT( hipMalloc(&A_d, K*N*sizeof(double)) );
-    HIP_ASSERT( hipMalloc(&B_d, M*N*sizeof(double)) );
-    HIP_ASSERT( hipMalloc(&C_d, K*M*sizeof(double)) );
     
+
     std::mt19937 mt( seed );
 
     set_random_matrix(A,K,N,mt );
     set_random_matrix(B,N,M,mt );
-    
+
     std::fill ( C , C+K*M, 0);
 
-    HIP_ASSERT( hipMemcpy(A_d, A, K*N*sizeof(double),  hipMemcpyHostToDevice) );
-    HIP_ASSERT( hipMemcpy(B_d, B, M*N*sizeof(double),  hipMemcpyHostToDevice) );
-    HIP_ASSERT( hipMemcpy(C_d, C, K*M*sizeof(double),  hipMemcpyHostToDevice) );
 
     rocblas_operation trans_a =  rocblas_operation_none ;
     rocblas_operation trans_b =  rocblas_operation_none ;
-
 
     rocblas_handle handle;
     rocblas_create_handle(&handle);
@@ -110,29 +81,40 @@ int main(int argc, char ** argv)
     double alpha=1;
     double beta=0;
 
-    for(int i=0;i<nTrials;i++)
+    #pragma omp target data map(tofrom:A[0:K*N],B[0:N*M],C[0:K*M])
     {
-        rocblas_dgemm(  
-            handle,
-            trans_a, trans_b,
-            (int)K,
-            (int)M,
-            (int)N,
-            &alpha,
-            A_d,
-            (int)N,
-            B_d,
-            (int)M,
-            &beta,
-            C_d,
-            (int)M
-        );
+        #pragma omp target data use_device_addr(A[:K*N],B[:K*N],C[:K*N])
+        {
+            for(int i=0;i<nTrials;i++)
+            {
+                rocblas_dgemm(  
+                    handle,
+                    trans_b, trans_a,
+                    (int)M,
+                    (int)K,
+                    (int)N,
+                    &alpha,
+                    B,
+                    (int)M,
+                    A,
+                    (int)N,
+                    &beta,
+                    C,
+                    (int)M
+                );
+        }
 
+
+        }
+    
     }
 
-    HIP_ASSERT( hipPeekAtLastError() );
-    HIP_ASSERT( hipMemcpy(C, C_d, K*M*sizeof(double),  hipMemcpyDeviceToHost) );
 
+    std::cout << "A" << std::endl;
+    print_matrix(A,K,N);
+    std::cout << "B" << std::endl;
+    print_matrix(B,N,M);
+    std::cout << "C" << std::endl;
     print_matrix(C,K,M);
     
     std::cout << "Success" << std::endl;
