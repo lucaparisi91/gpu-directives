@@ -1,7 +1,5 @@
 
 
-/// Contains geometrical and discretisation information
-
 #include <iostream>
 #include <cmath>
 #include <fstream>
@@ -9,7 +7,7 @@
 #include <roctracer/roctx.h>
 
 /**
- * Defineds a grid structure.
+ * Defines a grid structure.
  * The underlying data structure contains ghost cells and is ordered row-wise.
  * 
  * (-1,-1) , (-1,0) ... (-1,n[1])
@@ -271,10 +269,10 @@ double get_norm(const double * field, const grid * g)
 
 int main(int argc, char ** argv)
 {
-    size_t nx = 500;
-    size_t ny= 500;
+    size_t nx = 1000;
+    size_t ny= 1000;
 
-    int niterations = 10000;
+    int niterations = 10;
     
     double left_box[2]= {-1,-1};
     double right_box[2]= {1,1};
@@ -326,7 +324,6 @@ int main(int argc, char ** argv)
             roctx_range_id_t roctx_jacobi_id = roctxRangeStartA("jacobi");
             compute_jacobi(phi_new,phi_old,rho,&current_grid);
             roctxRangeStop(roctx_jacobi_id);
-
             compute_jacobi_timer.stop();
 
             //apply_periodic_bc_timer.start();

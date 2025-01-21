@@ -7,7 +7,9 @@
 #include <fstream>
 #include <omp.h>
 #include <roctracer/roctx.h>
-
+#include "grid.h"
+#include "jacobi_hip.h"
+#include "hip/hip_runtime.h"
 
 /**
  * Defineds a grid structure.
@@ -57,25 +59,7 @@ std::ostream& operator<<(std::ostream & os, const timer & t)
 }
 
 
-struct grid_t
-{
-    /**
-     * Returns the index of the location in memory associated with cell (i,j) .
-     * i.e : (0,0) -> 1() + n[1] + 2
-    */
-    inline auto get_index(size_t i, size_t j) const { return (j +1) + (i+1)*(n[1]+2);};
 
-    inline double x(size_t i) const {return start[0] + dx[0] * i  ;}
-    inline double y(size_t j) const {return start[1] + dx[1] * j  ;}
-
-    inline size_t size() const { return (n[0]+2) * (n[1] + 2);}
-    
-    
-    size_t n[2];
-    double dx[2];
-    double start[2];
-    double end[2];
-};
 
 grid_t make_grid(const double start[2],const double end[2], size_t n[2]  )
 {
@@ -152,13 +136,32 @@ void apply_drichlet_bc(double * field, const grid_t * g, double value)
 }
 
 
+void compute_jacobi_rocm(field_t * phi_new, field_t * phi_old, field_t * rho, int nFields)
+{
 
+    for(int iField=0 ; iField < nFields ; iField++ )
+    {
+        auto field_phi_new=phi_new[iField].get_data();
+        auto field_phi_old=phi_old[iField].get_data();
+        auto field_rho=rho[iField].get_data();
+        auto g = phi_new[iField].get_grid();
+        auto nx = g->n[0];
+        auto ny = g->n[1];
+
+        dim3 blockSize(8,8,1);
+        dim3 gridSize((nx+1)/8,(ny+1)/8,1);
+
+        #pragma omp target data use_device_addr(field_phi_new[0:1],field_phi_old[0:1],field_rho[0:1],g[0:1])
+        {
+            launch_compute_jacobi_hip(field_phi_new,field_phi_old,field_rho,g,nx,ny);
+        }
+
+    }
+}
 
 /**
- * Makes a step of the jacobi interaction. Compute the new field, given the hold field and the know densitiy field.
+ * Makes a step of the jacobi interaction. Compute the new field, given the old field and the know densitiy field.
 */
-
-
 void compute_jacobi(field_t * phi_new, field_t * phi_old, field_t * rho, int nFields)
 {
 
@@ -169,7 +172,7 @@ void compute_jacobi(field_t * phi_new, field_t * phi_old, field_t * rho, int nFi
         auto field_rho=rho[iField].get_data();
         auto g = phi_new[iField].get_grid();
 
-        //#pragma omp target data map(tofrom:field_phi_new[0:g.size()],field_phi_old[0:g.size()],g,g.n[0:2],g.dx[0:2],field_rho[0:g.size()])
+        //#pragma omp target data map(tofrom:field_phi_new[0:g->size()],field_phi_old[0:g->size()],*g,g->n[0:2],g->dx[0:2],field_rho[0:g->size()])
         {
             #pragma omp target teams distribute parallel for collapse(2)
             for(int i=0; i<g->n[0] ; i++)
@@ -312,14 +315,14 @@ double get_norm(const double * field, const grid_t * g)
 
 int main(int argc, char ** argv)
 {
-
-    int nFields=1; // number of equations to solve
-    int niterations = 10;  // number of time steps
-    int nIterationsOutput = niterations/1; // Number of iterations between successive outputs
+    
+    int nFields= 1; // number of equations to solve
+    int niterations = 10000;  // number of time steps
+    int nIterationsOutput = niterations/10; // Number of iterations between successive outputs
 
     double left_box[2]= {-1,-1}; // Coordinate of the bottom left corner
     double right_box[2]= {1,1}; // Cooridinat of the top right corner
-    size_t shape[2] = {500, 500 }; // Grid shape
+    size_t shape[2] = { 100 , 100 }; // Grid shape
 
     std::cout << "Initialise" << std::endl;
 
@@ -378,15 +381,21 @@ int main(int argc, char ** argv)
 
         #pragma omp target data map(tofrom: phi_new[0:nFields],phi_old[0:nFields],rho[0:nFields])
         {
+                            
 
             if ( i==0 ) 
             {
+             
+                std::swap(phi_new,phi_old);
+               
+
                 compute_jacobi(phi_new,phi_old,rho,nFields);
             }
 
             for (int iBlock=0;(iBlock<nIterationsOutput) and (i<niterations);iBlock++)
             {
                 std::swap(phi_new,phi_old);
+                
                 roctx_range_id_t roctx_jacobi_id = roctxRangeStartA("jacobi");
                 compute_jacobi_timer.start();
                 compute_jacobi(phi_new,phi_old,rho,nFields);
@@ -397,15 +406,20 @@ int main(int argc, char ** argv)
 
             }
         }
-        /**
-         * Output 
-        */
-        for(int iField=0;iField<nFields;iField++)
-        {
-            print_to_file(phi_new[iField].get_data(),&current_grid,"phi" + std::to_string(iField) + "_" + std::to_string(i) + ".dat" );
-        }
-
+        
+            /**
+             * Output 
+            */
+            //#pragma omp target update from( phi_new[0:nFields],phi_old[0:nFields] , current_grid)
+             for(int iField=0;iField<nFields;iField++)
+            {
+                print_to_file(phi_new[iField].get_data(),&current_grid,"phi" + std::to_string(iField) + "_" + std::to_string(i) + ".dat" );
+            }
+           
+        
     }
+
+    
 
     total_time_timer.stop();
 
@@ -414,4 +428,6 @@ int main(int argc, char ** argv)
     std::cout << total_time_timer << std::endl;
     std::cout << compute_jacobi_timer << std::endl;
     std::cout << apply_periodic_bc_timer << std::endl;
+
+    
 }
