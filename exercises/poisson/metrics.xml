@@ -4,6 +4,6 @@
 <metric
     name="Occupancy"
     descr="Fraction of active wavefronts relative to the theorethical maximum number of active wavefronts"
-    expr=SQ_LEVEL_WAVES*0+SQ_ACCUM_PREV_HIRES/GRBM_GUI_ACTIVE
+    expr=(SQ_LEVEL_WAVES*0+SQ_ACCUM_PREV_HIRES/(GRBM_GUI_ACTIVE*104*32))*100
 ></metric>
 </global>
