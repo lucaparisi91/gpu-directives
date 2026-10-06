@@ -1,4 +1,4 @@
-\documentclass{article}
+documentclass{article}
 \usepackage{graphicx} % required for inserting images
 \usepackage{listings}
 \usepackage{todonotes}
@@ -27,43 +27,31 @@ We keep iterating until we converge to an approximate solution of the Poisson eq
 
 \section{Compiling and Running}
 Unpack the poisson tar file with the command \texttt{tar -zxvf poisson\_exercise.tar.gz}.
+You will need to build and run on the compute nodes. You cannot build on the login nodes.
+You can start an interactive session on the gpu nodes with
 
-In the \texttt{poisson\_exercise} folder you will find the \texttt{env-archer2.sh} file. You can set-up your environment by sourcing the file.
+\begin{lstlisting}[language=Bash]
+srun --partition=gpu --qos=gpu-shd --gpus=1
+--time=2:0:0 --export=PATH   --pty /bin/bash
+\end{lstlisting}
+This will start an interactive session on the GPU nodes.
+In the \texttt{poisson\_exercise} folder you will find the \texttt{env-archer2-gpu.sh} file. You can set-up your environment by sourcing this file.
 
 \begin{lstlisting}[language=Bash]
 cd poisson_exercise
-source env-archer2.sh
+source env-archer2-gpu.sh
 \end{lstlisting}
 
 This folder contains a CPU implementation of the Poisson solver described above. 
 Once you have set-up your environment, you can compile by typing \texttt{make} in this folder.
-You can submit a job to the computing nodes using the \texttt{submit.sh} Slurm batch job script.
+You can submit a job to the computing nodes using the \texttt{run.slurm} Slurm batch job script.
+The \texttt{build.slurm} Slurm batch script can be used to build.
 
-\begin{lstlisting}[language=Bash]
-sbatch submit.sh
-\end{lstlisting}
 
 \section{Offload the main loop to the device}
 
 The Jacobi iteration is implemented in the \texttt{compute jacobi} function in \texttt{jacobi.cpp}.
 Your task is to offload the main loop to the device using OpenMP offloading, making sure to map all required variables to the device.
-You can check the correctness of your solution by using the \texttt{check\_output.py}. For instance, to check the correctness  of the data at time step 8000 between the origin CPU version and you new offloaded version you can use
-
-\begin{lstlisting}[language=Python]
-python3 check_output.py --compare original_phi0_80000.dat new_phi0_80000.dat
-\end{lstlisting}
-
-\begin{itemize}
-    \item This command should return $0$ ( within machine precision).
-    \item Be sure to save the original output files \texttt{(phi0\_*)} for comparison to your completed solution. 
-\end{itemize}
-
-You can also plot the solution obtained with 
-\begin{lstlisting}[language=Python]
-python3 check_output.py --plot phi*.dat
-\end{lstlisting}
-
-You will need X11 forwarding in order to visualize the plots. This can be done by adding the \texttt{-XY} flag to the \texttt{ssh} command when logging in.
 
 \subsection{Offload the main computational loop with OpenMP}
 The main loop is containted in the \texttt{jacobi.cpp}(\texttt{jacobi.f90} for Fortran) file.
@@ -108,18 +96,6 @@ There are several performance limiters that can affect the performance of an app
 \end{enumerate}
 
 In this exercise you will explore the performance of the offloaded OpenMP region.
-\subsection{Profiling}
-In order to analyze what is limiting the performance of a kernel it is useful to use a profiler tool to obtain information on how efficiently your computation kernel is using the device. A profile contains information on how efficiently you are using the hardware: wavefront occupancy, achieved bandwidth etc...
-
-You can can generate a profile by submitting with \texttt{sbatch submit-profiler.sh}. This will generate a \texttt{report.txt} file with a lot of information about the offloaded kernel.
-Below you can find a description of some useful sections:
-
-\begin{itemize}
-    \item \textit{Wavefront Occupancy}: Check this metric for an estimate of how much of the available parallelism on the device you are exploting.
-    \item \textit{Table 17.1 L2 cache. Speed-of-Light}: Look at the read and write bandwidth between the L2 cache and the Global memory. The peak achievable memory bandwidth on the Archer2 MI210 is about \texttt{1400 GB/s}. The peak theoretical bandwidth is \texttt{1600 GB/s}.
-    \item \textit{Table 17.3 L2 Cache Accesses}: Look at the number of read/write requests per wavefront. Do they align with your expectations ?
-    \item \textit{Kernel Time (Nanosec)}: Execution time on the device of the kernel.
-\end{itemize}
 
 \subsection{ Optimisations}
 \begin{enumerate}

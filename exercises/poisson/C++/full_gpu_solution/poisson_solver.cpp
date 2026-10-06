@@ -42,7 +42,7 @@ int main(int argc, char ** argv)
     /**
      * Definitions
     */
-    int nFields= 10; // number of equations to solve
+    int nFields= 1; // number of equations to solve
     int nIterations = 10000; // Total number of iterations
     int nOutputBlocks = 10; // Approximate number of times to perform output during the simulation
     

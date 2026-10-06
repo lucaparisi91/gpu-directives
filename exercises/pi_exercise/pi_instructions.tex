@@ -1,12 +1,3 @@
-\documentclass{article}
-\usepackage{graphicx} % required for inserting images
-\usepackage{listings}
-\usepackage{todonotes}
-
-\title{GPU Programming with Directives Exercise \\\ Approximating Pi}
-\author{}
-\date{}
-
 \begin{document}
 
 \maketitle
@@ -30,10 +21,7 @@ Log on to ARCHER2: \texttt{ssh username@login.archer2.ac.uk}.
 
 \section{Compiling and Running}
 
-The code is contained in \texttt{pi.tar}. The tar file can be fetched from GitHub by cloning the course repository with the following commands:
-\\~\\
-\indent\texttt{git clone https://github.com/EPCCed/archer2-GPU-directives.git} \\
-\indent\texttt{git checkout 2025-03-12} \\ 
+The code is contained in \texttt{pi.tar}. The tar file can be fetched from GitHub. The link can be found on the course web page, on the Archer2 website.
 
 \noindent Alternatively, the file can be found on ARCHER2 and copied into your \texttt{/work/} directory with the command:
 \\~'\\
@@ -41,6 +29,14 @@ The code is contained in \texttt{pi.tar}. The tar file can be fetched from GitHu
 
 \noindent Unpack the file with the command: \texttt{tar -xvf pi.tar}. There are equivalent C and Fortran versions available in \texttt{pi/C} and \texttt{pi/Fortran}, respectively.\\
 
+You will need to build and run on the compute nodes. You cannot build on the login nodes.
+You can start an interactive session on the gpu nodes with
+
+\begin{lstlisting}[language=Bash]
+srun --partition=gpu --qos=gpu-shd --gpus=1
+--time=2:0:0 --export=PATH   --pty /bin/bash
+\end{lstlisting}
+This will start an interactive session on the GPU nodes.
 \noindent Since this exercise will involve offloading to GPUs with OpenMP directives, certain modules must be loaded prior to compiling the code: \\
 
 \texttt{module load PrgEnv-amd} \\
@@ -71,5 +67,3 @@ Begin by compiling and running the code. Initially, it will only run on the CPU 
 
 
 \end{document}
-
-

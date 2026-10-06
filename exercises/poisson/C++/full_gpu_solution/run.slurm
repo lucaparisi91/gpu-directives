@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=poisson-gpu
+#SBATCH --job-name=poisson
 #SBATCH --gpus=1
 #SBATCH --nodes=1
 #SBATCH --time=00:05:00
@@ -9,7 +9,6 @@
 
 #export CRAY_ACC_DEBUG=3
 
+source ../../env-archer2-gpu.sh
 
-source ../../env-archer2.sh
-
-srun --ntasks=1 --cpus-per-task=1  ./poisson
+srun --ntasks=1 --cpus-per-task=1  ./poisson_rocm

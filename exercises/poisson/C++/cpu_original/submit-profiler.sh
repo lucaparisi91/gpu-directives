@@ -8,7 +8,7 @@
 #SBATCH --qos=gpu-shd
 
 
-source ../../env-archer2.sh
+source ../../env-archer2-gpu.sh
 
 
 module use /mnt/lustre/a2fs-work4/work/z19/shared/rocm/install/3.0.0/modulefiles
